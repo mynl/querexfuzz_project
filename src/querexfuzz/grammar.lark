@@ -1,0 +1,85 @@
+// querexfuzz grammar specification
+
+query: clause_list | empty
+
+clause_list: (clause)+
+
+empty:
+
+// Clause is a wrapper, prefixing ?means the "pass up unchanged"
+// rules do not have to be implemented.
+// however, here and for clause_list that doesn't
+// seem to work; the step gets omitted with adverse
+// consequences
+clause: top_clause
+       | flags
+       | select_clause
+       | regex_clause
+       | where_clause
+       | order_by_clause
+       | date_clause
+
+flags: (VERBOSE | RECENT)+
+VERBOSE: "verbose"
+RECENT: "recent"
+
+top_clause: TOP integer
+
+select_clause: "select" select_list
+select_list: select_item ("," select_item)*
+select_item: select_all | select_exclude_identifier | select_include_identifier
+select_all: "*"
+select_include_identifier: IDENTIFIER
+select_exclude_identifier: ("!"|"-") IDENTIFIER
+
+regex_clause: regexes
+regexes: regex_item ("and" regex_item)*
+regex_item: regex_bang | regex_ident
+regex_bang: "!" REGEX
+regex_ident: IDENTIFIER "~" REGEX
+
+where_clause: "where" where_clause_list
+where_clause_list: where_item ("and" where_item)*
+where_item: IDENTIFIER EQ_TEST (QUOTED_STRING | number | DATETIME | IDENTIFIER)
+
+order_by_clause: (ORDER | SORT) BY column_sort_list
+column_sort_list: column_sort_item ("," column_sort_item)*
+column_sort_item: column_sort_desc | column_sort_asc
+column_sort_asc: IDENTIFIER
+column_sort_desc: "-" IDENTIFIER
+
+date_clause: (date_item)+
+// date_item: "@" ("[" IDENTIFIER "]")? date_specifier
+date_item: "@" (IDENTIFIER)? date_specifier
+date_specifier: DATE_UNIT ("-" integer (":" integer)?)?
+
+// number: INT | FLOAT
+integer: INT
+number: SIGNED_NUMBER
+
+// Terminals
+ORDER: "order"
+SORT: "sort"
+TOP: "top"
+BY: "by"
+DATE_UNIT: "y"|"q"|"m"|"w"|"d"|"h"
+
+REGEX: /(\/[^\/]*\/)|([^\s"']+)/
+
+// IDENTIFIER: /[a-zA-Z_][a-zA-Z0-9_.]*/
+// IDENTIFIER.1: /[^@\s~\-\/!,][^\s~=<>,]*/
+IDENTIFIER: /[a-zA-Z_][^\s~=<>,]*/
+
+EQ_TEST: "==" | "!=" | ">=" | "<=" | ">" | "<"
+
+// QUOTED_STRING: /"[^"]*"/ | /'[^']*'/
+QUOTED_STRING: /"[^"\\]*(\\\\.[^"\\]*)*"|'[^'\\]*(\\\\.[^'\\]*)*'/
+
+// DATETIME: /[0-9]{4}(-[0-9]{2}(-[0-9]{2}(T[0-9]{2}(:[0-9]{2}(:[0-9]{2})?)?)?)?)?/
+DATETIME: /(19|20)\d{2}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])\s(?:[01][0-9]|2[0-3]):[0-5][0-9]|(19|20)\d{2}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])|(19|20)\d{2}-(0[1-9]|1[0-2])|(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])|(?:[01][0-9]|2[0-3]):[0-5][0-9]/
+
+%import common.INT
+%import common.SIGNED_NUMBER
+%import common.WS
+%ignore WS
+

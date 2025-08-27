@@ -1,0 +1,25 @@
+[project]
+name = "querexfuzz"
+version = "0.1.0"
+description = "A flexible query engine for pandas DataFrames with SQL, regex, date, and fuzzy matching."
+requires-python = ">=3.9"
+dependencies = [
+    "pandas>=2.0",
+    "lark>=1.0",
+    "pydantic>=2.0",
+    "pyyaml",
+    "python-dateutil",
+]
+
+# Add this new section for optional dependencies
+[project.optional-dependencies]
+test = [
+    "pytest",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+# Add this entire section to your pyproject.toml
+[tool.setuptools.package-data]
+"querexfuzz" = ["*.lark"]

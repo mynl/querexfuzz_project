@@ -1,0 +1,100 @@
+version: 1
+disable_existing_loggers: false
+
+formatters:
+  # json:
+  #   class: pythonjsonlogger.jsonlogger.JsonFormatter
+  #   format: "%(asctime)s %(levelname)s %(name)s %(message)s"
+  #   rename_fields:
+  #     levelname: level
+  #     asctime: time
+
+  json_detailed:
+    class: pythonjsonlogger.jsonlogger.JsonFormatter
+    format: "%(asctime)s %(levelname)s %(name)s %(message)s %(filename)s %(funcName)s %(lineno)d %(process)d %(threadName)s"
+    rename_fields:
+      asctime: time
+      levelname: level
+
+  plain:
+    class: logging.Formatter
+    format: "%(asctime)s|%(levelname)-6s|%(name)s[%(filename)s:%(lineno)d %(funcName)s] %(message)s"
+    datefmt: "%H:%M:%S"
+
+  very_plain:
+    # This formatter only outputs the message itself
+    format: "%(message)s"
+
+filters:
+  only_parser_debug:
+    (): querexfuzz.logging_filters.OnlyParserDebugFilter
+  exclude_parser_debug:
+    (): querexfuzz.logging_filters.ExcludeParserDebugFilter
+
+handlers:
+  console:
+    class: logging.StreamHandler
+    level: WARNING
+    formatter: plain
+    stream: ext://sys.stderr
+
+  working_console:
+    class: logging.StreamHandler
+    level: NOTSET 
+    formatter: plain
+    filters: [exclude_parser_debug] # <-- Uses the new exclusion filter
+    stream: ext://sys.stderr
+
+  very_plain_console:
+    class: logging.StreamHandler
+    level: NOTSET
+    formatter: very_plain
+    stream: ext://sys.stderr
+
+  file_querexfuzz:
+    class: logging.handlers.TimedRotatingFileHandler
+    when: midnight
+    interval: 1
+    backupCount: 7
+    filename: /tmp/querexfuzz.json
+    level: DEBUG
+    formatter: json_detailed
+    encoding: utf8
+    delay: true
+
+  file_querexfuzz_parse:
+    class: logging.FileHandler
+    mode: a    # append mode
+    encoding: utf8
+    delay: true
+    filename: /tmp/querexfuzz-parser.json
+    level: DEBUG
+    formatter: very_plain
+    # filters: [only_parser_debug] # <-- Uses the new inclusion filter
+
+# define loggers for all my projects
+loggers:
+  # greater_tables:
+  #   level: INFO
+  #   handlers: [console]
+  #   propagate: false
+
+  querexfuzz:
+    level: DEBUG
+    handlers: [working_console, file_querexfuzz]
+    filters: [exclude_parser_debug]
+    propagate: false
+
+  querexfuzz.parser:
+    level: DEBUG
+    handlers: [file_querexfuzz_parse]
+    propagate: false
+
+  __main__:
+    level: INFO
+    handlers: [working_console]
+    propagate: false 
+
+root:
+  level: WARNING
+  handlers: [console]

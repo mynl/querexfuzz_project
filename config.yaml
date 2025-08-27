@@ -1,0 +1,19 @@
+base_cols:
+  - name
+  - city
+  - registered_date
+  - age
+
+date_fields:
+  - registered_date
+
+default_date_field: registered_date
+bang_field: name
+recent_field: registered_date
+
+fuzzy:
+  fields:
+    - name
+    - city
+  limit: 50
+  score_col_name: score
