@@ -2,6 +2,7 @@ from datetime import datetime
 import pandas as pd
 from dateutil.relativedelta import relativedelta
 
+
 def resolve_date_range(spec: dict) -> tuple[datetime, datetime]:
     """Converts a date spec from the parser into a (start, end) datetime tuple."""
     now = pd.Timestamp.now()

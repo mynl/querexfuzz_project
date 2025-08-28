@@ -1,7 +1,13 @@
+import logging
 import re
 import pandas as pd
 from .config import QuerexfuzzConfig
 from .dates import resolve_date_range
+
+
+logger = logging.getLogger(__name__)
+logger.info('engine setup')
+
 
 def _mock_fuzzy_search(series: pd.Series, query: str, limit: int) -> tuple[pd.Index, list[float]]:
     """A placeholder for your Rust-based fuzzy matcher."""
@@ -16,6 +22,7 @@ def _mock_fuzzy_search(series: pd.Series, query: str, limit: int) -> tuple[pd.In
     scores = [len(query) / len(s) if s else 0 for s in matched_series]
 
     return matched_series.index, scores
+
 
 def execute_query(df: pd.DataFrame, spec: dict, config: QuerexfuzzConfig) -> pd.DataFrame:
     """Applies the parsed query specification to a DataFrame."""

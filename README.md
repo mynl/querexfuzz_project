@@ -32,7 +32,7 @@ pip install querexfuzz
 For development, clone the repository and install it in editable mode with the testing dependencies:
 
 ```bash
-git clone https://github.com/your-username/querexfuzz.git
+git clone https://github.com/mynl/querexfuzz.git
 cd querexfuzz
 pip install -e .[test]
 ```
@@ -115,7 +115,7 @@ Use `~` for column-specific regex and `!` for a default "bang" field (configured
 
 ```python
 # Find names starting with A or B
-df.querexfuzz("name ~ '^[A-B]'")
+df.querexfuzz("name ~ ^[A-B]")
 
 # Use the default bang_field (e.g., name)
 df.querexfuzz("! ice") # Matches Alice
@@ -130,8 +130,8 @@ Query date ranges using natural language specifiers.
 # Assuming today is 2025-08-27
 df.querexfuzz("@m-3")
 
-# People registered between 6 and 18 months ago on the 'registered_date' field
-df.querexfuzz("@[registered_date] m-18:6")
+# People registered between 6 and 28 months ago on the 'registered_date' field
+df.querexfuzz("@registered_date m-28:6")
 
 # People registered this year
 df.querexfuzz("@y")

@@ -13,10 +13,11 @@ GRAMMAR_FILE = Path(__file__).parent / "grammar.lark"
 # ==============================================================================
 # The Lark instance is created ONCE when the module is imported.
 _LARK_PARSER = Lark.open(GRAMMAR_FILE, start='query',
-    parser='earley', lexer='dynamic')
+                         parser='earley', lexer='dynamic')
 # ==============================================================================
 
-logger.info('rebuilt parser.py')
+logger.info('built parser.py')
+
 
 @v_args(inline=True)
 class QueryTransformer(Transformer):
@@ -36,26 +37,34 @@ class QueryTransformer(Transformer):
         return self.spec
 
     def query(self, clause_list):
-        logger.debug("Finalizing query transformation on list %s:", clause_list)
+        logger.debug(
+            "Finalizing query transformation on list %s:", clause_list)
         return self.spec
 
     def clause_list(self, *clauses):
-        logger.debug("Assembling %s parsed clauses into final spec.", len(clauses))
+        logger.debug(
+            "Assembling %s parsed clauses into final spec.", len(clauses))
         for clause_type, value in clauses:
-            logger.debug("  -> Applying clause '%s' with value: %s", clause_type, value)
+            logger.debug("  -> Applying clause '%s' with value: %s",
+                         clause_type, value)
             if clause_type == 'flags' or clause_type == 'regex' or clause_type == 'sort' or clause_type == 'dates':
                 # allow multiple
                 self.spec[clause_type].extend(value)
-            else:
-                # only single top, select , or where
-                if clause_type in self.spec:
-                    logger.warning('clause type %s already exists with value %s, overwritten by %s',
-                        clause_type, self.spec[clause_type], value)
-                self.spec[clause_type] = value
+            # only single top, select , or where - see if anything there
+            elif clause_type == 'top':
+                if self.spec['top'] != -1:
+                    logger.warning('re-setting top from %s to %s',
+                                   self.spec['top'], value)
+            elif self.spec.get(clause_type, []):
+                # select and where are lists
+                logger.warning('clause type "%s" already exists with value %s, overwritten by %s',
+                               clause_type, self.spec[clause_type], value)
+            self.spec[clause_type] = value
         return self.spec
 
     def clause(self, item):
-        logger.debug('Clause (aggregator) with item %s (should be a tuple of (type, value))', item)
+        logger.debug(
+            'Clause (aggregator) with item %s (should be a tuple of (type, value))', item)
         return item
 
     # Clauses
@@ -79,7 +88,8 @@ class QueryTransformer(Transformer):
     def order_by_clause(self, _, __, sort_list):
         # responding to order_by_clause: (ORDER | SORT) [BY] column_sort_list
         # because of optionality, order and by are passed
-        logger.debug("Parsed order_by_clause, first args %s, %s;  sort list: %s", _, __, sort_list)
+        logger.debug(
+            "Parsed order_by_clause, first args %s, %s;  sort list: %s", _, __, sort_list)
         return 'sort', sort_list
 
     def date_clause(self, *items):
@@ -93,7 +103,8 @@ class QueryTransformer(Transformer):
     # Clause Components
     def regexes(self, head, *tail):
         value = [head] + list(tail)
-        logger.debug("Constructed regex list: %s from head %s and tail %s", value, head, tail)
+        logger.debug(
+            "Constructed regex list: %s from head %s and tail %s", value, head, tail)
         return value
 
     # def regex_item(self, bang, ident):
@@ -114,13 +125,29 @@ class QueryTransformer(Transformer):
         return value
 
     def where_clause_list(self, head, *tail):
-        value = ' and '.join([head] + list(tail))
-        logger.debug(f"Created where clause list: '{value}'")
-        return value
+        # Constructs the full 'where' clause string.
+        # 'tail' is now a tuple of (operator, expression) pairs.
+        # Example: (('and', 'price > 10'), ('or', 'stock > 0'))
+        logger.info(
+            "Constructing where_clause_list from head='%s' and tail=%s", head, tail
+        )
+        parts = [head]
+
+        # Iterate through the list of (operator, expression) tuples
+        for operator, expression in zip(tail[::2], tail[1::2]):
+            parts.append(operator)
+            parts.append(expression)
+
+        # Join all the parts with spaces
+        full_expression = ' '.join(parts)
+        logger.info("\tjoined 'where' conditions: '%s'", full_expression)
+        return full_expression
+
 
     def where_item(self, ident, op, val):
         value = f"{ident} {op} {val}"
-        logger.debug(f"Constructed where_item: '{value}'")
+        logger.debug('Constructed where_item: "%s" '
+            '(from %s, %s, and %s)', value, ident, op, val)
         return value
 
     def column_sort_list(self, head, *tail):
@@ -195,25 +222,27 @@ class QueryTransformer(Transformer):
 
     def integer(self, n):
         value = int(n)
-        logger.debug("Processing integer, value: %s (original type: %s)", value, type(n))
+        logger.debug(
+            "Processing integer, value: %s (original type: %s)", value, type(n))
         return value
 
     def number(self, n):
         # The INT and FLOAT terminals automatically convert the token's value,
         # so 'n' is already a Python int or float. This method just passes it up.
-        logger.debug("Processing (signed) number, value: %s (type: %s)", n, type(n))
+        logger.debug(
+            "Processing (signed) number, value: %s (type: %s)", n, type(n))
         return n
 
     # Terminals
     def __default_token__(self, token):
-        logger.debug("Processing TOKEN, type: %s, value: %s", token.type, repr(token.value))
+        logger.debug("Processing TOKEN, type: %s, value: %s",
+                     token.type, repr(token.value))
         return token.value
-
 
 
 def parser(text: str) -> dict:
     """Parses a querexfuzz query string into a specification dictionary."""
-    logger.info('running parser on %s', text)
+    # logger.info('running parser on %s', text)
     logger.debug("""
 *** Starting new parse job for query ***
 
@@ -224,7 +253,8 @@ def parser(text: str) -> dict:
     fuzzy_query = None
     if '#' in text:
         main_query, fuzzy_query = text.split('#', 1)
-        logger.debug("Split query into main='%s' and fuzzy='%s'", main_query, fuzzy_query)
+        logger.debug("Split query into main='%s' and fuzzy='%s'",
+                     main_query, fuzzy_query)
     else:
         main_query = text.strip()
         logger.debug("No fuzzy query found. Main query: '%s'", main_query)
@@ -234,7 +264,8 @@ def parser(text: str) -> dict:
         tree = _LARK_PARSER.parse(main_query)
         logger.debug("Lark produced parse tree:\n%s", tree.pretty())
     except Exception as e:
-        logger.error(f"Failed to parse query: '{main_query}'.\nError: {e}", exc_info=False)
+        logger.error(f"Failed to parse query: '{main_query}.\n"
+                     f"Error: {e}", exc_info=False)
         raise ValueError(f"Failed to parse query: '{main_query}'. Error {e}")
 
     try:
@@ -242,8 +273,10 @@ def parser(text: str) -> dict:
         transformer = QueryTransformer()
         spec = transformer.transform(tree)
     except Exception as e:
-        logger.error(f"Failed to Transform: '{main_query}'.\nError:\n{e}", exc_info=False)
-        raise ValueError(f"Failed to transform query: '{main_query}'. Error: {e}")
+        logger.error(f"Failed to Transform: '{main_query}'.\n"
+                     f"Error:\n{e}", exc_info=False)
+        raise ValueError(f"Failed to transform query: '{main_query}'."
+                         f" Error: {e}")
 
     try:
         spec['fuzzy'] = fuzzy_query.strip() if fuzzy_query else None
@@ -252,5 +285,7 @@ def parser(text: str) -> dict:
         logger.debug("Spec dictionary constructed: %s", pretty_spec)
         return spec
     except Exception as e:
-        logger.error(f"Failed to print (unlikely) query: '{main_query}'. Error: {e}", exc_info=False)
-        raise ValueError(f"Failed to finalize query: '{main_query}'. Error: {e}")
+        logger.error(f"Failed to print (unlikely) query: '{main_query}'. "
+                     f"Error: {e}", exc_info=False)
+        raise ValueError(f"Failed to finalize query: '{main_query}'. "
+                         f"Error: {e}")

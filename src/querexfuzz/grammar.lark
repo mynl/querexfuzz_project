@@ -39,7 +39,7 @@ regex_bang: "!" REGEX
 regex_ident: IDENTIFIER "~" REGEX
 
 where_clause: "where" where_clause_list
-where_clause_list: where_item ("and" where_item)*
+where_clause_list: where_item (BIN_OP where_item)*
 where_item: IDENTIFIER EQ_TEST (QUOTED_STRING | number | DATETIME | IDENTIFIER)
 
 order_by_clause: (ORDER | SORT) BY column_sort_list
@@ -63,6 +63,7 @@ SORT: "sort"
 TOP: "top"
 BY: "by"
 DATE_UNIT: "y"|"q"|"m"|"w"|"d"|"h"
+BIN_OP: "and" | "or"
 
 REGEX: /(\/[^\/]*\/)|([^\s"']+)/
 

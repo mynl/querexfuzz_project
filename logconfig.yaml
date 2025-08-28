@@ -57,6 +57,7 @@ handlers:
     interval: 1
     backupCount: 7
     filename: /tmp/querexfuzz.json
+    filters: [exclude_parser_debug] # <-- Uses the new exclusion filter
     level: DEBUG
     formatter: json_detailed
     encoding: utf8
@@ -70,24 +71,17 @@ handlers:
     filename: /tmp/querexfuzz-parser.json
     level: DEBUG
     formatter: very_plain
-    # filters: [only_parser_debug] # <-- Uses the new inclusion filter
+    filters: [only_parser_debug] # <-- Uses the new inclusion filter
 
-# define loggers for all my projects
+
+# define loggers for this project
 loggers:
-  # greater_tables:
-  #   level: INFO
-  #   handlers: [console]
-  #   propagate: false
 
   querexfuzz:
     level: DEBUG
-    handlers: [working_console, file_querexfuzz]
-    filters: [exclude_parser_debug]
-    propagate: false
-
-  querexfuzz.parser:
-    level: DEBUG
-    handlers: [file_querexfuzz_parse]
+    # All handlers are now on the parent logger
+    handlers: [working_console, file_querexfuzz, file_querexfuzz_parse]
+    # No filters on the logger itself
     propagate: false
 
   __main__:
