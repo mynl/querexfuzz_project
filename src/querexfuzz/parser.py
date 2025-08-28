@@ -53,11 +53,11 @@ class QueryTransformer(Transformer):
             # only single top, select , or where - see if anything there
             elif clause_type == 'top':
                 if self.spec['top'] != -1:
-                    logger.warning('re-setting top from %s to %s',
+                    logger.info('re-setting top from %s to %s',
                                    self.spec['top'], value)
             elif self.spec.get(clause_type, []):
                 # select and where are lists
-                logger.warning('clause type "%s" already exists with value %s, overwritten by %s',
+                logger.info('clause type "%s" already exists with value %s, overwritten by %s',
                                clause_type, self.spec[clause_type], value)
             self.spec[clause_type] = value
         return self.spec

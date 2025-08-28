@@ -62,7 +62,7 @@ ORDER: "order"
 SORT: "sort"
 TOP: "top"
 BY: "by"
-DATE_UNIT: "y"|"q"|"m"|"w"|"d"|"h"
+DATE_UNIT: "c"|"y"|"q"|"m"|"w"|"d"|"h"
 BIN_OP: "and" | "or"
 
 REGEX: /(\/[^\/]*\/)|([^\s"']+)/

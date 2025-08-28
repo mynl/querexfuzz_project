@@ -18,7 +18,7 @@ formatters:
 
   plain:
     class: logging.Formatter
-    format: "%(asctime)s|%(levelname)-6s|%(name)s[%(filename)s:%(lineno)d %(funcName)s] %(message)s"
+    format: "%(asctime)s.%(msecs)03d|%(levelname)-6s|%(name)s[%(filename)s:%(lineno)d %(funcName)s] %(message)s"
     datefmt: "%H:%M:%S"
 
   very_plain:
@@ -34,13 +34,13 @@ filters:
 handlers:
   console:
     class: logging.StreamHandler
-    level: WARNING
+    level: NOTSET
     formatter: plain
     stream: ext://sys.stderr
 
   working_console:
     class: logging.StreamHandler
-    level: NOTSET 
+    level: WARNING # NOTSET
     formatter: plain
     filters: [exclude_parser_debug] # <-- Uses the new exclusion filter
     stream: ext://sys.stderr
@@ -83,6 +83,10 @@ loggers:
     handlers: [working_console, file_querexfuzz, file_querexfuzz_parse]
     # No filters on the logger itself
     propagate: false
+
+  greater_tables:
+    level: WARNING 
+    handlers: [console]
 
   __main__:
     level: INFO

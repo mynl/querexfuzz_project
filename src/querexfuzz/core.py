@@ -7,13 +7,14 @@ import pandas as pd
 
 from .parser import parser
 from .engine import execute_query
-from .config import QuerexfuzzConfig  # Assuming your Pydantic model is here
+from .config import QuerexfuzzConfig, FuzzyConfig
 
 
 logger = logging.getLogger(__name__)
 
 # Define the method name as a class attribute for consistency
-_METHOD_NAME = "querefuzz"
+_METHOD_NAME = "querexfuzz"
+
 
 class Querexfuzz:
     """Manages configuration and attachment of the .querefuzz method."""
@@ -62,6 +63,12 @@ class Querexfuzz:
             self.config.model_dump_json(indent=4)
         )
 
+    @staticmethod
+    def parse(expr):
+        """Convenience method for testing parser."""
+        # note, you can also import parser directly!
+        return parser(expr)
+
     def _query_method(self, df: pd.DataFrame, expr: str) -> pd.DataFrame:
         """The method that is attached to the DataFrame."""
         spec = parser(expr)
@@ -83,9 +90,9 @@ class Querexfuzz:
         """
         logger.debug(
             "Attaching .%s method to DataFrame with id: %d",
-            self._METHOD_NAME, id(df)
+            _METHOD_NAME, id(df)
         )
-        setattr(df, self._METHOD_NAME, MethodType(self._query_method, df))
+        setattr(df, _METHOD_NAME, MethodType(self._query_method, df))
 
         if alias:
             logger.debug(
@@ -94,3 +101,66 @@ class Querexfuzz:
             setattr(df, alias, MethodType(self._query_method, df))
 
         return df
+
+
+# helper factory method
+def querexfuzz_from_df(df, *, bang_field=None, default_date_field=None,
+                       recent_field=None, fuzzy_fields=None,
+                       score_col_name='score', attach=True):
+    """
+    Create a Querexfuzz by inspecting df.
+
+    By default, all columns not starting _ are selected to base_cols.
+    All date fields to date_fields. If only one, it becomes the
+    default_date_field (default for @ clauses) and the recent_field
+    (field for sorting for recent).
+
+    If there is only one object field, it becomes the bang field (default
+    for regex).
+    If fuzzy_fields is None then all object fields are selected. If there
+    is only one, it becomes bang_field if that is omitted.
+
+    Highlight mode is true if len(fuzzy_fields)==1.
+
+    Parameters
+    ----------
+
+    bang_field, default_date_field, recent_field ->
+    score_col_name: name for the score column in fuzzy matches
+    attach: attach querexfuzz method to df (default True)
+
+    """
+    base_cols = [i for i in df.columns if i[0] != '_']
+    date_fields = [i for i in df.select_dtypes(include=["datetime64[ns]"]).columns if i[0] != '_']
+    if default_date_field is None and len(date_fields) == 1:
+        default_date_field = date_fields[0]
+    if recent_field is None and len(date_fields) == 1:
+        recent_field = date_fields[0]
+    elif recent_field is None and default_date_field is not None:
+        recent_field = default_date_field
+    elif recent_field is not None and default_date_field is None:
+        default_date_field = recent_field
+
+    fuzzy_fields = fuzzy_fields or [i for i in df.select_dtypes(include="object").columns
+                                    if i[0] != '_']
+    if bang_field is None and len(fuzzy_fields) == 1:
+        bang_field = fuzzy_fields[0]
+
+    highlight = len(fuzzy_fields) == 1
+
+    qfz = Querexfuzz(
+        base_cols=base_cols,
+        date_fields=date_fields,
+        default_date_field=default_date_field,
+        bang_field=bang_field,
+        recent_field=recent_field,
+        fuzzy=FuzzyConfig(fields=fuzzy_fields,
+                          limit=50,
+                          score_col_name=score_col_name,
+                          highlight=highlight)
+        )
+    if attach:
+        # this acts in-place
+        qfz.attach_to(df)
+    return qfz
+
