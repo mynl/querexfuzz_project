@@ -23,12 +23,13 @@ flags: (VERBOSE | RECENT)+
 VERBOSE: "verbose"
 RECENT: "recent"
 
-top_clause: TOP integer
+top_clause: (TOP | BOTTOM) integer
 
 select_clause: "select" select_list
 select_list: select_item ("," select_item)*
-select_item: select_all | select_exclude_identifier | select_include_identifier
-select_all: "*"
+select_item: select_all | select_base | select_exclude_identifier | select_include_identifier
+select_all: "**"
+select_base: "*"
 select_include_identifier: IDENTIFIER
 select_exclude_identifier: ("!"|"-") IDENTIFIER
 
@@ -38,8 +39,15 @@ regex_item: regex_bang | regex_ident
 regex_bang: "!" REGEX
 regex_ident: IDENTIFIER "~" REGEX
 
-where_clause: "where" where_clause_list
-where_clause_list: where_item (BIN_OP where_item)*
+// where_clause: "where" where_clause_list
+// where_clause_list: where_item (BIN_OP where_item)*
+// The top-level where clause now uses the new recursive expression
+where_clause: WHERE where_expression
+// An expression is one or more terms joined by AND/OR
+where_expression: where_term (BIN_OP where_term)*
+// A term is either a basic comparison OR a nested expression in parentheses
+where_term: where_item | parenthesized_expression
+parenthesized_expression: "(" where_expression ")"
 where_item: IDENTIFIER EQ_TEST (QUOTED_STRING | number | DATETIME | IDENTIFIER)
 
 order_by_clause: (ORDER | SORT) BY column_sort_list
@@ -58,6 +66,8 @@ integer: INT
 number: SIGNED_NUMBER
 
 // Terminals
+BOTTOM: "bottom"
+WHERE: "where"
 ORDER: "order"
 SORT: "sort"
 TOP: "top"

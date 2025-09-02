@@ -54,11 +54,11 @@ class QueryTransformer(Transformer):
             elif clause_type == 'top':
                 if self.spec['top'] != -1:
                     logger.info('re-setting top from %s to %s',
-                                   self.spec['top'], value)
+                                self.spec['top'], value)
             elif self.spec.get(clause_type, []):
                 # select and where are lists
                 logger.info('clause type "%s" already exists with value %s, overwritten by %s',
-                               clause_type, self.spec[clause_type], value)
+                            clause_type, self.spec[clause_type], value)
             self.spec[clause_type] = value
         return self.spec
 
@@ -68,9 +68,12 @@ class QueryTransformer(Transformer):
         return item
 
     # Clauses
-    def top_clause(self, _, n):
+    def top_clause(self, tb, n):
         value = n
-        logger.debug("Parsed top_clause, value: %s (_=%s)", value, _)
+        logger.debug("Raw top_clause, value: %s (tb=%s)", value, tb)
+        if tb == 'bottom':
+            value = -value
+        logger.debug("Parsed top_clause, %s -> %s", tb, value)
         return 'top', value
 
     def flags(self, *flags):
@@ -81,9 +84,9 @@ class QueryTransformer(Transformer):
         logger.debug("Parsed regex_clause, values: %s", items)
         return 'regex', items
 
-    def where_clause(self, expr):
-        logger.debug(f"Parsed where_clause, expression: '%s'", expr)
-        return 'where', expr
+    # def where_clause(self, expr):
+    #     logger.debug(f"Parsed where_clause, expression: '%s'", expr)
+    #     return 'where', expr
 
     def order_by_clause(self, _, __, sort_list):
         # responding to order_by_clause: (ORDER | SORT) [BY] column_sort_list
@@ -124,30 +127,73 @@ class QueryTransformer(Transformer):
         logger.debug("Constructed regex_ident item: %s", value)
         return value
 
-    def where_clause_list(self, head, *tail):
-        # Constructs the full 'where' clause string.
-        # 'tail' is now a tuple of (operator, expression) pairs.
-        # Example: (('and', 'price > 10'), ('or', 'stock > 0'))
-        logger.info(
-            "Constructing where_clause_list from head='%s' and tail=%s", head, tail
+    # def where_clause_list(self, head, *tail):
+    #     # Constructs the full 'where' clause string.
+    #     # 'tail' is now a tuple of (operator, expression) pairs.
+    #     # Example: (('and', 'price > 10'), ('or', 'stock > 0'))
+    #     logger.info(
+    #         "Constructing where_clause_list from head='%s' and tail=%s", head, tail
+    #     )
+    #     parts = [head]
+
+    #     # Iterate through the list of (operator, expression) tuples
+    #     for operator, expression in zip(tail[::2], tail[1::2]):
+    #         parts.append(operator)
+    #         parts.append(expression)
+
+    #     # Join all the parts with spaces
+    #     full_expression = ' '.join(parts)
+    #     logger.info("\tjoined 'where' conditions: '%s'", full_expression)
+    #     return full_expression
+# --- In your QueryTransformer class ---
+
+# REMOVE the old where_clause_list method.
+# ADD these new methods:
+    def where_clause(self, _, expr):
+        # This now receives the WHERE token, which we ignore.
+        logger.debug("Parsed where_clause, expression: '%s', (_=%s)", expr, _)
+        return 'where', expr
+
+    def where_expression(self, head, *tail):
+        """
+        Constructs a query string from a head term and a tail of
+        alternating operators and terms.
+        """
+        logger.debug(
+            "Constructing where_expression from head='%s' and tail=%s", head, tail
         )
         parts = [head]
 
-        # Iterate through the list of (operator, expression) tuples
+        # Use the zip method to process the flat tail into pairs
         for operator, expression in zip(tail[::2], tail[1::2]):
             parts.append(operator)
             parts.append(expression)
 
-        # Join all the parts with spaces
         full_expression = ' '.join(parts)
-        logger.info("\tjoined 'where' conditions: '%s'", full_expression)
+        logger.debug("\t-->joined where_expression: '%s'", full_expression)
         return full_expression
 
+    def where_term(self, term):
+        # This method just passes the result up the tree.
+        logger.debug("Processing where_term, value: %s", term)
+        return term
 
+    def parenthesized_expression(self, inner_expr):
+        """
+        Receives the fully resolved expression from inside a pair of parentheses
+        and wraps it in parentheses for the final output string.
+        """
+        # 'inner_expr' is the already-processed string from the recursive
+        # call to the 'where_expression' method.
+        result = f"({inner_expr})"
+        logger.debug("Wrapping parenthesized expression: %s", result)
+        return result
+
+# end new; where item unchanged
     def where_item(self, ident, op, val):
         value = f"{ident} {op} {val}"
         logger.debug('Constructed where_item: "%s" '
-            '(from %s, %s, and %s)', value, ident, op, val)
+                     '(from %s, %s, and %s)', value, ident, op, val)
         return value
 
     def column_sort_list(self, head, *tail):
@@ -197,8 +243,12 @@ class QueryTransformer(Transformer):
         return 'exclude', ident
 
     def select_all(self):
-        logger.debug("Parsed select all ('*')")
-        return 'include', 'all'
+        logger.debug("Parsed select all ('**')")
+        return 'include', '__all__'
+
+    def select_base(self):
+        logger.debug("Parsed select base ('**')")
+        return 'include', '__base__'
 
     def date_item(self, *args):
         logger.debug('\tdate args %s', args)

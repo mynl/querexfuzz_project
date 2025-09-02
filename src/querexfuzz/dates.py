@@ -13,15 +13,19 @@ Testers::
 from datetime import datetime
 from logging import getLogger
 
-import pandas as pd
 from dateutil.relativedelta import relativedelta
+import tzlocal
+import pandas as pd
+
+
+TIMEZONE = tzlocal.get_localzone()
 
 logger = getLogger(__name__)
 
 
 def resolve_date_range(spec: dict) -> tuple[datetime, datetime]:
     """Converts a date spec from the parser into a (start, end) datetime tuple."""
-    now = pd.Timestamp.now()
+    now = pd.Timestamp.now(tz=TIMEZONE)
     unit = spec['unit']
 
     # --- New section for 'c' (calendar year) unit ---
@@ -39,9 +43,9 @@ def resolve_date_range(spec: dict) -> tuple[datetime, datetime]:
         if start_year > end_year:
             start_year, end_year = end_year, start_year
 
-        start_date = pd.Timestamp(f"{start_year}-01-01")
+        start_date = pd.Timestamp(f"{start_year}-01-01", tz=TIMEZONE)
         # Go to the very end of the last day of the end year
-        end_date = pd.Timestamp(f"{end_year}-12-31T23:59:59.999999")
+        end_date = pd.Timestamp(f"{end_year}-12-31T23:59:59.999999", tz=TIMEZONE)
 
         # logger.debug("Resolved calendar year range: %s to %s", start_date, end_date)
         return start_date, end_date

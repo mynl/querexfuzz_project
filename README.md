@@ -147,6 +147,21 @@ Fuzzy search across one or more columns (configured in `fuzzy.fields`). This cla
 df.querexfuzz("# berlin")
 ```
 
+### `select` Clause
+
+Operates similar to SQL select with some extra features. When built, user specifies a set of `base_cols` which are returned by default if there is no `select` clause. Then
+
+* `select *` means select the base columns (and is the default behavior with no select clause)
+* `select **` actually selects all the columns
+* `select a, b, c` selects `a`, `b` and `c`
+* `select *, a, b` selects the base columns plus `a` and `b`
+* `select *, ~a, !b` selects the base columns minus `a` and `b`; either `-` or `!` can be used
+* `select **, -a` selects all columns except `a`
+* If no base columns are specified then no select statement returns all columns
+* None of `-*`, `!*`, `-**`, and `!**` is valid.
+
+The base columns construct saves typing a select clause in many situations.
+
 ### Combining Clauses
 
 Combine clauses to create powerful and specific queries.

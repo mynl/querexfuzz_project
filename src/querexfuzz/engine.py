@@ -150,6 +150,7 @@ def execute_query(df: pd.DataFrame, spec: dict, config: QuerexfuzzConfig) -> pd.
                 df[fuzzy_conf.score_col_name] = scores
             logger.info('created fuzzy search output')
             has_fuzzy_results = True
+        logger.debug('Applied fuzzy matching')
 
     # 5. Sort
     sort_cols = [col for col, asc in spec['sort']]
@@ -169,22 +170,41 @@ def execute_query(df: pd.DataFrame, spec: dict, config: QuerexfuzzConfig) -> pd.
     # 6. Limit (Top N)
     if spec['top'] > 0:
         df = df.head(spec['top'])
+    elif spec['top'] < 0:
+        df = df.tail(-spec['top'])
 
     # 7. Select Columns
+    # per README
+    # `select *` means select the base columns (and is the default behavior with no select clause)
+    # `select **` actually selects all the columns
+    # `select a, b, c` selects `a`, `b` and `c`
+    # `select *, a, b` selects the base columns plus `a` and `b`
+    # `select *, ~a, !b` selects the base columns minus `a` and `b`; either `-` or `!` can be used
+    # `select **, -a` selects all columns except `a`
     sel = spec['select']
     if sel['include'] or sel['exclude']:
-        if sel['include'] == ['*']:
+        if '__all__' in sel['include']:
             fields = list(df.columns)
-        else:
-            # do in two steps to avoid duplicating fields
+        elif '__base__' in sel['include'] or not sel['include']:
+            # just in case and to get the right order
+            # or empty include => base cols by default
             fields = [i for i in config.base_cols if i in df.columns]
-            fields = fields + [
-                i for i in sel['include'] if i in df.columns and i not in fields]
-
+        else:
+            fields = []
+        # de-duplicate (note i in seen is O(1) because of hashing)
+        seen = set()
+        fields = [i for i in fields if not (i in seen or seen.add(i))]
+        # do in two steps to avoid duplicating fields
+        fields = fields + [
+            i for i in sel['include'] if i in df.columns and not (i in seen or seen. add(i))]
         final_fields = [
-            f for f in fields if f not in sel['exclude'] and f in df.columns]
+            f for f in fields if f not in sel['exclude']]
     elif config.base_cols:
+        # if there is no select clause
         final_fields = [f for f in config.base_cols if f in df.columns]
+    else:
+        # no select and no base_cols ==> all cols
+        final_fields = list(df.columns)
     if has_fuzzy_results and fuzzy_conf.score_col_name not in final_fields:
         final_fields.append(fuzzy_conf.score_col_name)
 

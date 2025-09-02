@@ -58,10 +58,10 @@ class Querexfuzz:
         self.config = QuerexfuzzConfig(**config_data)
 
         logger.info("Querexfuzz engine initialized successfully.")
-        logger.debug(
-            "Final configuration:\n%s",
-            self.config.model_dump_json(indent=4)
-        )
+        # logger.debug(
+        #     "Final configuration:\n%s",
+        #     self.config.model_dump_json(indent=4)
+        # )
 
     @staticmethod
     def parse(expr):
@@ -104,9 +104,9 @@ class Querexfuzz:
 
 
 # helper factory method
-def querexfuzz_from_df(df, *, bang_field=None, default_date_field=None,
-                       recent_field=None, fuzzy_fields=None,
-                       score_col_name='score', attach=True):
+def querexfuzz_from_df(df, *, base_cols=None, bang_field=None,
+                       default_date_field=None, recent_field=None,
+                       fuzzy_fields=None, score_col_name='score', attach=True):
     """
     Create a Querexfuzz by inspecting df.
 
@@ -130,8 +130,8 @@ def querexfuzz_from_df(df, *, bang_field=None, default_date_field=None,
     attach: attach querexfuzz method to df (default True)
 
     """
-    base_cols = [i for i in df.columns if i[0] != '_']
-    date_fields = [i for i in df.select_dtypes(include=["datetime64[ns]"]).columns if i[0] != '_']
+    base_cols = base_cols or [i for i in df.columns if i[0] != '_']
+    date_fields = [i for i in df.select_dtypes(include=["datetime64[ns]", "datetimetz"]).columns if i[0] != '_']
     if default_date_field is None and len(date_fields) == 1:
         default_date_field = date_fields[0]
     if recent_field is None and len(date_fields) == 1:
@@ -141,6 +141,8 @@ def querexfuzz_from_df(df, *, bang_field=None, default_date_field=None,
     elif recent_field is not None and default_date_field is None:
         default_date_field = recent_field
 
+    # ensure_list:
+    fuzzy_fields = [fuzzy_fields] if isinstance(fuzzy_fields, str) else fuzzy_fields
     fuzzy_fields = fuzzy_fields or [i for i in df.select_dtypes(include="object").columns
                                     if i[0] != '_']
     if bang_field is None and len(fuzzy_fields) == 1:
@@ -158,9 +160,8 @@ def querexfuzz_from_df(df, *, bang_field=None, default_date_field=None,
                           limit=50,
                           score_col_name=score_col_name,
                           highlight=highlight)
-        )
+    )
     if attach:
         # this acts in-place
         qfz.attach_to(df)
     return qfz
-
