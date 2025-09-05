@@ -27,7 +27,7 @@ class QueryTransformer(Transformer):
         super().__init__()
         self.spec = {
             'select': {'include': [], 'exclude': []}, 'sort': [],
-            'regex': [], 'where': None, 'top': -1, 'flags': [],
+            'regex': [], 'where': None, 'top': 0, 'flags': [],
             'dates': [], 'fuzzy': None
         }
         logger.debug("QueryTransformer initialized with empty spec.")
