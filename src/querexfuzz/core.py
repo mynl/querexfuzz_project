@@ -47,7 +47,7 @@ class Querexfuzz:
         config_data = {}
         if config_path:
             self.config_path = Path(config_path)
-            with self.config_path.open('r') as f:
+            with self.config_path.open("r") as f:
                 config_data = yaml.safe_load(f)
 
         # Keyword arguments override the data loaded from the file
@@ -75,7 +75,9 @@ class Querexfuzz:
         logger.debug("Parsed query spec: %s", spec)
         return execute_query(df, spec, self.config)
 
-    def attach_to(self, df: pd.DataFrame, alias: str | None = 'q') -> pd.DataFrame:
+    def attach_to(
+        self, df: pd.DataFrame, method_name: str | None, alias: str | None = "q"
+    ) -> pd.DataFrame:
         """
         Attaches the query method to a DataFrame instance.
 
@@ -89,24 +91,30 @@ class Querexfuzz:
             pd.DataFrame: The same DataFrame, now with the query method attached.
         """
         logger.debug(
-            "Attaching .%s method to DataFrame with id: %d",
-            _METHOD_NAME, id(df)
+            "Attaching .%s method to DataFrame with id: %d", _METHOD_NAME, id(df)
         )
-        setattr(df, _METHOD_NAME, MethodType(self._query_method, df))
+        method_name = method_name or _METHOD_NAME
+        setattr(df, method_name, MethodType(self._query_method, df))
 
         if alias:
-            logger.debug(
-                "Adding alias '.%s' for the query method.", alias
-            )
+            logger.debug("Adding alias '.%s' for the query method.", alias)
             setattr(df, alias, MethodType(self._query_method, df))
 
         return df
 
 
 # helper factory method
-def querexfuzz_from_df(df, *, base_cols=None, bang_field=None,
-                       default_date_field=None, recent_field=None,
-                       fuzzy_fields=None, score_col_name='score', attach=True):
+def querexfuzz_from_df(
+    df,
+    *,
+    base_cols=None,
+    bang_field=None,
+    default_date_field=None,
+    recent_field=None,
+    fuzzy_fields=None,
+    score_col_name="score",
+    attach=True
+):
     """
     Create a Querexfuzz by inspecting df.
 
@@ -130,8 +138,12 @@ def querexfuzz_from_df(df, *, base_cols=None, bang_field=None,
     attach: attach querexfuzz method to df (default True)
 
     """
-    base_cols = base_cols or [i for i in df.columns if i[0] != '_']
-    date_fields = [i for i in df.select_dtypes(include=["datetime64[ns]", "datetimetz"]).columns if i[0] != '_']
+    base_cols = base_cols or [i for i in df.columns if i[0] != "_"]
+    date_fields = [
+        i
+        for i in df.select_dtypes(include=["datetime64[ns]", "datetimetz"]).columns
+        if i[0] != "_"
+    ]
     if default_date_field is None and len(date_fields) == 1:
         default_date_field = date_fields[0]
     if recent_field is None and len(date_fields) == 1:
@@ -143,8 +155,9 @@ def querexfuzz_from_df(df, *, base_cols=None, bang_field=None,
 
     # ensure_list:
     fuzzy_fields = [fuzzy_fields] if isinstance(fuzzy_fields, str) else fuzzy_fields
-    fuzzy_fields = fuzzy_fields or [i for i in df.select_dtypes(include="object").columns
-                                    if i[0] != '_']
+    fuzzy_fields = fuzzy_fields or [
+        i for i in df.select_dtypes(include="object").columns if i[0] != "_"
+    ]
     if bang_field is None and len(fuzzy_fields) == 1:
         bang_field = fuzzy_fields[0]
 
@@ -156,12 +169,37 @@ def querexfuzz_from_df(df, *, base_cols=None, bang_field=None,
         default_date_field=default_date_field,
         bang_field=bang_field,
         recent_field=recent_field,
-        fuzzy=FuzzyConfig(fields=fuzzy_fields,
-                          limit=50,
-                          score_col_name=score_col_name,
-                          highlight=highlight)
+        fuzzy=FuzzyConfig(
+            fields=fuzzy_fields,
+            limit=50,
+            score_col_name=score_col_name,
+            highlight=highlight,
+        ),
     )
     if attach:
         # this acts in-place
         qfz.attach_to(df)
     return qfz
+
+
+def querexfuzz_help() -> str:
+    """Help on the grammar."""
+    return """
+querexfuzz  Help
+================
+
+Query syntax
+------------
+All rows optional. Must be in order shown.
+An empty query returns all rows.
+
+verbose
+recent                             age column added]
+top n
+select (!|-)field1[, fields]       prefix drops field
+regex [and regex]                  !=author, eg ! Wang, !/Wang, R/
+where sql                          where author=="Quoted, Name"
+order|sort by [-]field[, fields]   prefix - for decreasing order
+@[date_field] [c|y|q|m|w|d|h] -[from][:to]
+                                   filter by date on date_field
+"""
