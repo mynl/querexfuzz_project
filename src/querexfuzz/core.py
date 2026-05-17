@@ -56,6 +56,9 @@ class Querexfuzz:
 
         # Validate and create the final config object using Pydantic
         self.config = QuerexfuzzConfig(**config_data)
+        # Caches built skimmatch matchers keyed by (highlight_mode, hash(search_list)).
+        # Bounded to 8 entries; oldest evicted on overflow.
+        self._matcher_cache: dict = {}
 
         logger.info("Querexfuzz engine initialized successfully.")
         # logger.debug(
@@ -73,7 +76,7 @@ class Querexfuzz:
         """The method that is attached to the DataFrame."""
         spec = parser(expr)
         logger.debug("Parsed query spec: %s", spec)
-        return execute_query(df, spec, self.config)
+        return execute_query(df, spec, self.config, self._matcher_cache)
 
     def attach_to(
         self, df: pd.DataFrame, method_name: str | None = None, alias: str | None = "q"

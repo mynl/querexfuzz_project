@@ -71,10 +71,19 @@ def decorate(
 
 
 # main class
-def execute_query(df: pd.DataFrame, spec: dict, config: QuerexfuzzConfig) -> pd.DataFrame:
-    """Apply the parsed query specification to a DataFrame."""
-    df = df.copy()
+def execute_query(
+    df: pd.DataFrame,
+    spec: dict,
+    config: QuerexfuzzConfig,
+    matcher_cache: dict | None = None,
+) -> pd.DataFrame:
+    """Apply the parsed query specification to a DataFrame.
 
+    Filter operations (WHERE, regex, date range, sort, head/tail, column select)
+    all return new DataFrames, so no upfront copy is needed.  The only in-place
+    write is date-column type coercion; a copy is made there, after prior filters
+    have already reduced the DataFrame.
+    """
     # 1. Filter: WHERE clause (SQL-like)
     if spec['where']:
         df = df.query(spec['where'])
@@ -87,8 +96,7 @@ def execute_query(df: pd.DataFrame, spec: dict, config: QuerexfuzzConfig) -> pd.
                 df = df.loc[df[col].astype(str).str.contains(
                     pattern, regex=True, case=False, na=False)]
             except re.error:
-                logger.warning(f"Warning: Regex error with pattern '{pattern}'. "
-                               "Ignoring and continuing.")
+                logger.warning("Regex error with pattern '%s' — ignoring.", pattern)
         else:
             raise ValueError(f"Invalid column for regex search: '{col}'")
 
@@ -97,10 +105,11 @@ def execute_query(df: pd.DataFrame, spec: dict, config: QuerexfuzzConfig) -> pd.
         col = date_filter['field'] or config.default_date_field
         if not col or col not in df.columns:
             warnings.warn('No valid field for date spec - ignoring.',
-                         QuerexfuzzConfigurationWarning
-                         )
+                         QuerexfuzzConfigurationWarning)
         else:
-            df[col] = pd.to_datetime(df[col], errors='coerce')
+            if not pd.api.types.is_datetime64_any_dtype(df[col]):
+                df = df.copy()  # copy only when in-place type coercion is needed
+                df[col] = pd.to_datetime(df[col], errors='coerce')
             start_date, end_date = resolve_date_range(date_filter)
             if df[col].dt.tz is None:
                 start_date = start_date.replace(tzinfo=None)
@@ -119,8 +128,7 @@ def execute_query(df: pd.DataFrame, spec: dict, config: QuerexfuzzConfig) -> pd.
             search_cols = []
         if not search_cols:
             warnings.warn('No valid field for fuzzy search - ignoring pattern.',
-                         QuerexfuzzConfigurationWarning
-                         )
+                         QuerexfuzzConfigurationWarning)
         else:
             if len(search_cols) == 1:
                 search_list = df[search_cols[0]].astype(str).to_list()
@@ -130,28 +138,34 @@ def execute_query(df: pd.DataFrame, spec: dict, config: QuerexfuzzConfig) -> pd.
 
             limit = spec['top'] if spec['top'] > 0 else fuzzy_conf.limit
 
+            # Cache matcher by (highlight_mode, data_hash). Evict oldest when > 8 entries.
+            cache_key = (fuzzy_conf.highlight, hash(tuple(search_list)))
+            if matcher_cache is not None and cache_key in matcher_cache:
+                matcher = matcher_cache[cache_key]
+                logger.debug('reusing cached fuzzy matcher')
+            else:
+                logger.info('building fuzzy matcher...')
+                matcher = (FuzzyMatcherMultiHi if fuzzy_conf.highlight
+                           else FuzzyMatcherMulti)(search_list)
+                if matcher_cache is not None:
+                    if len(matcher_cache) >= 8:
+                        del matcher_cache[next(iter(matcher_cache))]
+                    matcher_cache[cache_key] = matcher
+
             if fuzzy_conf.highlight:
-                logger.info('creating highlighting matcher...')
-                matcher = FuzzyMatcherMultiHi(search_list)
-                logger.info('creating matcher...done')
                 indices, scores, highlights = matcher.query(spec['fuzzy'], limit)
-                logger.info('rust matching complete')
-                # decorate only makes sense with one column
                 if len(search_cols) == 1:
                     df = decorate(df, indices, scores, highlights,
-                        search_cols[0], fuzzy_conf.score_col_name)
+                                  search_cols[0], fuzzy_conf.score_col_name)
                 else:
-                    # manual
                     df = df.iloc[indices].copy()
                     df[fuzzy_conf.score_col_name] = scores
             else:
-                logger.info('creating fuzzy matcher...')
-                matcher = FuzzyMatcherMulti(search_list)
-                logger.info('created fuzzy matcher')
                 indices, scores = matcher.query(spec['fuzzy'], limit)
                 df = df.iloc[indices].copy()
                 df[fuzzy_conf.score_col_name] = scores
-            logger.info('created fuzzy search output')
+
+            logger.info('fuzzy search complete')
             has_fuzzy_results = True
         logger.debug('Applied fuzzy matching')
 
@@ -168,8 +182,8 @@ def execute_query(df: pd.DataFrame, spec: dict, config: QuerexfuzzConfig) -> pd.
             df = df.sort_values(by=config.recent_field, ascending=False)
         else:
             warnings.warn('No valid recent field - recent sort ignored.',
-                         QuerexfuzzConfigurationWarning
-                         )
+                         QuerexfuzzConfigurationWarning)
+
     # 6. Limit (Top N)
     if spec['top'] > 0:
         df = df.head(spec['top'])
@@ -177,40 +191,31 @@ def execute_query(df: pd.DataFrame, spec: dict, config: QuerexfuzzConfig) -> pd.
         df = df.tail(-spec['top'])
 
     # 7. Select Columns
-    # per README
-    # `select *` means select the base columns (and is the default behavior with no select clause)
-    # `select **` actually selects all the columns
-    # `select a, b, c` selects `a`, `b` and `c`
-    # `select *, a, b` selects the base columns plus `a` and `b`
-    # `select *, ~a, !b` selects the base columns minus `a` and `b`; either `-` or `!` can be used
-    # `select **, -a` selects all columns except `a`
+    # `select *`    → base columns (default when no select clause)
+    # `select **`   → all columns
+    # `select a, b` → named columns
+    # `select *, a` → base columns plus a
+    # `select *, -a`→ base columns minus a  (- or ! prefix)
+    # `select **,-a`→ all columns minus a
     sel = spec['select']
     if sel['include'] or sel['exclude']:
         if '__all__' in sel['include']:
             fields = list(df.columns)
         elif '__base__' in sel['include'] or not sel['include']:
-            # just in case and to get the right order
-            # or empty include => base cols by default
             fields = [i for i in config.base_cols if i in df.columns]
         else:
             fields = []
-        # de-duplicate (note i in seen is O(1) because of hashing)
-        seen = set()
+        # de-duplicate while preserving order (i in seen is O(1))
+        seen: Set[str] = set()
         fields = [i for i in fields if not (i in seen or seen.add(i))]
-        # do in two steps to avoid duplicating fields
         fields = fields + [
-            i for i in sel['include'] if i in df.columns and not (i in seen or seen. add(i))]
-        final_fields = [
-            f for f in fields if f not in sel['exclude']]
+            i for i in sel['include'] if i in df.columns and not (i in seen or seen.add(i))]
+        final_fields = [f for f in fields if f not in sel['exclude']]
     elif config.base_cols:
-        # if there is no select clause
         final_fields = [f for f in config.base_cols if f in df.columns]
     else:
-        # no select and no base_cols ==> all cols
         final_fields = list(df.columns)
     if has_fuzzy_results and fuzzy_conf.score_col_name not in final_fields:
         final_fields.append(fuzzy_conf.score_col_name)
 
-    df = df[final_fields]
-
-    return df
+    return df[final_fields]
