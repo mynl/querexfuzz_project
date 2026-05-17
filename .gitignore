@@ -97,3 +97,7 @@ Desktop.ini
 
 # Sublime
 *.sublime-*
+
+# Claude Code
+CLAUDE.md
+.claude/

@@ -17,6 +17,16 @@ dependencies = [
 test = [
     "pytest",
 ]
+docs = [
+    "sphinx",
+    "sphinx-rtd-theme",
+    "myst-parser",
+]
+
+[project.urls]
+"Homepage" = "https://github.com/mynl/querexfuzz_project"
+"Repository" = "https://github.com/mynl/querexfuzz_project"
+"Bug Tracker" = "https://github.com/mynl/querexfuzz_project/issues"
 
 [build-system]
 requires = ["setuptools>=61"]

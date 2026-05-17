@@ -3,21 +3,25 @@
 pushd %~dp0
 
 REM Command file for Sphinx documentation
+REM Usage: make.bat html
 
 if "%SPHINXBUILD%" == "" (
-    set SPHINXBUILD=sphinx-build
+    set SPHINXBUILD=uv run sphinx-build
 )
 set SOURCEDIR=source
 set BUILDDIR=build
 
 if "%1" == "" goto help
 
-%SPHINXBUILD% -b %1 %SOURCEDIR% %BUILDDIR% %SPHINXOPTS% %O%
+%SPHINXBUILD% -b %1 %SOURCEDIR% %BUILDDIR%\%1 %SPHINXOPTS% %O%
 goto end
 
 :help
-echo.Please use `make ^<target^>` where ^<target^> is one of
-echo.  html  to make standalone HTML files
+echo.Usage: make.bat ^<target^>
+echo.
+echo.Targets:
+echo.  html       Build standalone HTML pages
+echo.  clean      Remove build output
 
 :end
 popd
