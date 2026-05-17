@@ -2,7 +2,7 @@
 name = "querexfuzz"
 version = "2.0.3"
 description = "A flexible query engine for pandas DataFrames with SQL, regex, date, and fuzzy matching."
-requires-python = ">=3.9"
+requires-python = ">=3.13"
 dependencies = [
     "pandas>=2.0",
     "lark>=1.0",
@@ -10,12 +10,17 @@ dependencies = [
     "pyyaml",
     "python-dateutil",
     "tzlocal",
+    "skimmatch",
 ]
 
 [project.optional-dependencies]
 test = [
     "pytest",
 ]
+
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
 where = ["src"]

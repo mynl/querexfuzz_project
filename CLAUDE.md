@@ -5,21 +5,21 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Commands
 
 ```bash
-# Install in editable mode with test dependencies
-pip install -e .[test]
+# Install / sync all dependencies (including test extras) — use uv
+uv sync --extra test
 
 # Run all tests
-pytest
+uv run pytest
 
 # Run a single test file
-pytest tests/test_parser.py
-pytest tests/test_engine.py
+uv run pytest tests/test_parser.py
+uv run pytest tests/test_grammar.py
 
 # Run a single test by name
-pytest tests/test_engine.py::test_function_name -v
+uv run pytest tests/test_engine.py::test_function_name -v
 
 # Run the example script
-python example.py
+uv run python example.py
 ```
 
 No linter or formatter is configured.
@@ -85,7 +85,7 @@ Fuzzy (`#`) must be last. Date spec format: `@[field] unit[-offset][:range]` whe
 
 ### Testing notes
 
-Tests in `tests/conftest.py` build a function-scoped fixture DataFrame and a configured `Querexfuzz` instance. Fixture dates are computed relative to `pd.Timestamp.now()` so date tests stay valid over time.
+Three test files — `test_parser.py` (parser unit tests), `test_engine.py` (engine integration tests), `test_grammar.py` (comprehensive grammar coverage, ~54 tests). All share fixtures from `tests/conftest.py`. Fixture dates are computed relative to `pd.Timestamp.now()` so date tests stay valid over time. Run via `uv run pytest`; sync deps first with `uv sync --extra test`.
 
 ## Versioning
 
