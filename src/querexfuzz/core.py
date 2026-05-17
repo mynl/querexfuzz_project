@@ -56,9 +56,10 @@ class Querexfuzz:
 
         # Validate and create the final config object using Pydantic
         self.config = QuerexfuzzConfig(**config_data)
-        # Caches built skimmatch matchers keyed by (highlight_mode, hash(search_list)).
-        # Bounded to 8 entries; oldest evicted on overflow.
-        self._matcher_cache: dict = {}
+        # Keyed by id(df): (search_cols, matcher). Populated lazily on first fuzzy call.
+        # Mutable dfs (opt-in via attach_to) bypass the cache and rebuild every call.
+        self._fuzzy_cache: dict = {}
+        self._mutable_ids: set = set()
 
         logger.info("Querexfuzz engine initialized successfully.")
         # logger.debug(
@@ -76,10 +77,14 @@ class Querexfuzz:
         """The method that is attached to the DataFrame."""
         spec = parser(expr)
         logger.debug("Parsed query spec: %s", spec)
-        return execute_query(df, spec, self.config, self._matcher_cache)
+        return execute_query(df, spec, self.config, engine=self)
 
     def attach_to(
-        self, df: pd.DataFrame, method_name: str | None = None, alias: str | None = "q"
+        self,
+        df: pd.DataFrame,
+        method_name: str | None = None,
+        alias: str | None = "q",
+        mutable: bool = False,
     ) -> pd.DataFrame:
         """
         Attaches the query method to a DataFrame instance.
@@ -89,6 +94,9 @@ class Querexfuzz:
             alias (str | None, optional): A short alias for the query method.
                 Set to 'q' by default. If None or '', no alias is created.
                 Defaults to 'q'.
+            mutable (bool): If True, the fuzzy matcher is rebuilt on every call
+                instead of being cached. Use when the DataFrame's contents change
+                between queries. Defaults to False.
 
         Returns:
             pd.DataFrame: The same DataFrame, now with the query method attached.
@@ -102,6 +110,12 @@ class Querexfuzz:
         if alias:
             logger.debug("Adding alias '.%s' for the query method.", alias)
             setattr(df, alias, MethodType(self._query_method, df))
+
+        if mutable:
+            self._mutable_ids.add(id(df))
+            self._fuzzy_cache.pop(id(df), None)
+        else:
+            self._mutable_ids.discard(id(df))
 
         return df
 

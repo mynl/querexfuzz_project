@@ -75,7 +75,7 @@ def execute_query(
     df: pd.DataFrame,
     spec: dict,
     config: QuerexfuzzConfig,
-    matcher_cache: dict | None = None,
+    engine=None,
 ) -> pd.DataFrame:
     """Apply the parsed query specification to a DataFrame.
 
@@ -83,7 +83,13 @@ def execute_query(
     all return new DataFrames, so no upfront copy is needed.  The only in-place
     write is date-column type coercion; a copy is made there, after prior filters
     have already reduced the DataFrame.
+
+    original_df is kept as a reference to the full unfiltered frame so the fuzzy
+    matcher (built once on engine._fuzzy_matcher) always searches the complete data
+    set; pre-filter results are intersected afterwards.
     """
+    original_df = df
+
     # 1. Filter: WHERE clause (SQL-like)
     if spec['where']:
         df = df.query(spec['where'])
@@ -120,49 +126,73 @@ def execute_query(
     has_fuzzy_results = False
     if spec['fuzzy']:
         fuzzy_conf = config.fuzzy
-        if fuzzy_conf.fields == 'all':
-            search_cols = df.select_dtypes(include='object').columns.tolist()
-        elif fuzzy_conf.fields:
-            search_cols = [c for c in fuzzy_conf.fields if c in df.columns]
-        else:
-            search_cols = []
-        if not search_cols:
-            warnings.warn('No valid field for fuzzy search - ignoring pattern.',
-                         QuerexfuzzConfigurationWarning)
-        else:
-            if len(search_cols) == 1:
-                search_list = df[search_cols[0]].astype(str).to_list()
-            else:
-                search_list = df[search_cols].apply(
-                    lambda row: ' '.join(row.astype(str)), axis=1).to_list()
+        df_id = id(original_df)
+        is_mutable = engine is not None and df_id in engine._mutable_ids
 
-            limit = spec['top'] if spec['top'] > 0 else fuzzy_conf.limit
+        # Fast path: immutable df with warm cache — skip all data prep.
+        cached = (engine._fuzzy_cache.get(df_id)
+                  if engine is not None and not is_mutable else None)
 
-            # Cache matcher by (highlight_mode, data_hash). Evict oldest when > 8 entries.
-            cache_key = (fuzzy_conf.highlight, hash(tuple(search_list)))
-            if matcher_cache is not None and cache_key in matcher_cache:
-                matcher = matcher_cache[cache_key]
-                logger.debug('reusing cached fuzzy matcher')
+        if cached is not None:
+            search_cols, matcher = cached
+            logger.debug('reusing cached fuzzy matcher')
+        else:
+            if fuzzy_conf.fields == 'all':
+                search_cols = original_df.select_dtypes(include='object').columns.tolist()
+            elif fuzzy_conf.fields:
+                search_cols = [c for c in fuzzy_conf.fields if c in original_df.columns]
             else:
+                search_cols = []
+
+            if not search_cols:
+                warnings.warn('No valid field for fuzzy search - ignoring pattern.',
+                             QuerexfuzzConfigurationWarning)
+                matcher = None
+            else:
+                if len(search_cols) == 1:
+                    search_list = original_df[search_cols[0]].astype(str).to_list()
+                else:
+                    search_list = original_df[search_cols].apply(
+                        lambda row: ' '.join(row.astype(str)), axis=1).to_list()
                 logger.info('building fuzzy matcher...')
                 matcher = (FuzzyMatcherMultiHi if fuzzy_conf.highlight
                            else FuzzyMatcherMulti)(search_list)
-                if matcher_cache is not None:
-                    if len(matcher_cache) >= 8:
-                        del matcher_cache[next(iter(matcher_cache))]
-                    matcher_cache[cache_key] = matcher
+                if engine is not None and not is_mutable:
+                    engine._fuzzy_cache[df_id] = (search_cols, matcher)
+
+        if matcher is not None:
+            limit = spec['top'] if spec['top'] > 0 else fuzzy_conf.limit
+
+            # When pre-filters narrowed df, overfetch then intersect with valid positions.
+            has_prefilters = bool(spec['where']) or bool(spec['regex']) or bool(spec['dates'])
+            if has_prefilters:
+                fetch_limit = limit * 5
+                valid_pos = set(i for i in original_df.index.get_indexer(df.index) if i >= 0)
+            else:
+                fetch_limit = limit
+                valid_pos = None
 
             if fuzzy_conf.highlight:
-                indices, scores, highlights = matcher.query(spec['fuzzy'], limit)
+                indices, scores, highlights = matcher.query(spec['fuzzy'], fetch_limit)
+                if valid_pos is not None:
+                    triples = [(i, s, h) for i, s, h in zip(indices, scores, highlights)
+                               if i in valid_pos][:limit]
+                    indices = [t[0] for t in triples]
+                    scores = [t[1] for t in triples]
+                    highlights = [t[2] for t in triples]
                 if len(search_cols) == 1:
-                    df = decorate(df, indices, scores, highlights,
+                    df = decorate(original_df, indices, scores, highlights,
                                   search_cols[0], fuzzy_conf.score_col_name)
                 else:
-                    df = df.iloc[indices].copy()
+                    df = original_df.iloc[indices].copy()
                     df[fuzzy_conf.score_col_name] = scores
             else:
-                indices, scores = matcher.query(spec['fuzzy'], limit)
-                df = df.iloc[indices].copy()
+                indices, scores = matcher.query(spec['fuzzy'], fetch_limit)
+                if valid_pos is not None:
+                    pairs = [(i, s) for i, s in zip(indices, scores) if i in valid_pos][:limit]
+                    indices = [p[0] for p in pairs]
+                    scores = [p[1] for p in pairs]
+                df = original_df.iloc[indices].copy()
                 df[fuzzy_conf.score_col_name] = scores
 
             logger.info('fuzzy search complete')

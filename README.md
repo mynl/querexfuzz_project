@@ -1,35 +1,26 @@
 # Querexfuzz
 
-[](https://www.google.com/search?q=https://github.com/mynl/querexfuzz/actions)
+A flexible query engine for pandas DataFrames. `querexfuzz` lets you filter and search your data using a unified syntax that combines SQL-like `where` clauses, regular expressions, natural date ranges, and fuzzy matching — all in a single query string.
 
-A flexible and powerful query engine for pandas DataFrames. `querexfuzz` lets you filter and search your data using a clean, combined syntax that supports SQL-like queries, regular expressions, natural date ranges, and fuzzy matching.
-
-----
-
-NOTES: move later
-
-* considered lazy setup: makes first call slow; Gemini thinks initial call will be quick. this approach gives consistent parse speed.
-
------
+---
 
 ## Core Features
 
-  * **Unified Query Language**: Combine `where` clauses, `regex` searches (`~`), date filters (`@`), and fuzzy matching (`#`) in a single string.
-  * **DataFrame Native**: Attaches a `.querexfuzz()` method directly to your DataFrame instances for a seamless `pandas` workflow.
-  * **Highly Configurable**: Use a simple `config.yml` file to define default columns, search fields, and other behaviors for different datasets.
-  * **Developer Friendly**: Built with a modern `src/` layout, Pydantic for configuration, and a `pytest` suite for robust testing.
+- **Unified query language**: combine `where`, regex (`~` / `!`), date filters (`@`), and fuzzy matching (`#`) in one string.
+- **DataFrame native**: attaches a `.querex()` method (and `.q()` alias) directly to DataFrame instances.
+- **Auto-configuration**: `querexfuzz_from_df` inspects column types and sets sensible defaults automatically.
+- **Fast fuzzy search**: powered by [skimmatch](https://github.com/mynl/skimmatch); matcher built once per DataFrame and cached for the lifetime of the engine.
+- **Configurable**: via YAML file, keyword arguments, or both.
 
------
+---
 
 ## Installation
-
-To install the package for use in your projects:
 
 ```bash
 pip install querexfuzz
 ```
 
-For development, clone the repository and install it in editable mode with the testing dependencies:
+For development:
 
 ```bash
 git clone https://github.com/mynl/querexfuzz.git
@@ -37,146 +28,160 @@ cd querexfuzz
 pip install -e .[test]
 ```
 
------
+---
 
 ## Quickstart
 
-1.  **Create a `config.yml` file** in your project's root directory to configure the engine:
+### Auto-configure from a DataFrame
 
-    ```yaml
-    # config.yml
-    base_cols:
-      - name
-      - city
-      - registered_date
-      - age
-
-    date_fields:
-      - registered_date
-
-    default_date_field: registered_date
-    bang_field: name
-    recent_field: registered_date
-
-    fuzzy:
-      fields:
-        - name
-        - city
-      limit: 50
-      score_col_name: score
-    ```
-
-2.  **Use `querexfuzz` in your Python code**:
-
-    ```python
-    import pandas as pd
-    from querexfuzz import Querexfuzz
-
-    # Create a sample DataFrame
-    data = {
-        'name': ['Alice', 'Bob', 'Charlie', 'David', 'Eve'],
-        'age': [25, 30, 35, 40, 45],
-        'city': ['Amsterdam', 'Berlin', 'Copenhagen', 'Berlin', 'Amsterdam'],
-        'registered_date': pd.to_datetime([
-            '2025-08-10', '2025-06-15', '2024-01-20', '2025-08-25', '2025-07-30'
-        ])
-    }
-    df = pd.DataFrame(data)
-
-    # Initialize Querexfuzz with your config
-    qflex = Querexfuzz(config_path='config.yml')
-
-    # Attach the .querexfuzz() method to your DataFrame
-    df = qflex.attach_to(df)
-
-    # Run your first query!
-    result = df.querexfuzz("where city == 'Berlin' and age > 35")
-    print(result)
-    ```
-
------
-
-## Query Syntax Examples
-
-The `querexfuzz` language is designed to be intuitive. Clauses can be combined in almost any order.
-
-### `where` Clause
-
-Uses standard `pandas.DataFrame.query()` syntax for SQL-like filtering.
+The simplest path — `querexfuzz_from_df` inspects column types and wires everything up:
 
 ```python
-# Find people in Amsterdam older than 30
-df.querexfuzz("where city == 'Amsterdam' and age > 30")
+import pandas as pd
+from querexfuzz import querexfuzz_from_df
+
+df = pd.DataFrame({
+    'name': ['Alice', 'Bob', 'Charlie', 'David', 'Eve'],
+    'age': [25, 30, 35, 40, 45],
+    'city': ['Amsterdam', 'Berlin', 'Copenhagen', 'Berlin', 'Amsterdam'],
+    'registered_date': pd.to_datetime([
+        '2025-08-10', '2025-06-15', '2024-01-20', '2025-08-25', '2025-07-30'
+    ])
+})
+
+querexfuzz_from_df(df)        # attaches .querex() and .q() to df in-place
+
+result = df.querex("where city == 'Berlin'")
+result = df.q("top 5 # ams")  # short alias
 ```
 
-### `regex` Search
-
-Use `~` for column-specific regex and `!` for a default "bang" field (configured in `config.yml`).
+### Explicit configuration
 
 ```python
-# Find names starting with A or B
-df.querexfuzz("name ~ ^[A-B]")
+from querexfuzz import Querexfuzz
 
-# Use the default bang_field (e.g., name)
-df.querexfuzz("! ice") # Matches Alice
+engine = Querexfuzz(
+    base_cols=['name', 'city', 'registered_date', 'age'],
+    date_fields=['registered_date'],
+    default_date_field='registered_date',
+    bang_field='name',
+    recent_field='registered_date',
+    fuzzy=dict(fields=['name', 'city'], limit=50, score_col_name='score'),
+)
+engine.attach_to(df)
+
+result = df.querex("recent top 10 where age > 30 # berlin")
 ```
 
-### `@date` Filter
-
-Query date ranges using natural language specifiers.
+### From a YAML config file
 
 ```python
-# People registered in the last 3 months
-# Assuming today is 2025-08-27
-df.querexfuzz("@m-3")
-
-# People registered between 6 and 28 months ago on the 'registered_date' field
-df.querexfuzz("@registered_date m-28:6")
-
-# People registered this year
-df.querexfuzz("@y")
+engine = Querexfuzz(config_path='config.yml')
+engine = Querexfuzz(config_path='config.yml', fuzzy={'limit': 200})  # with overrides
 ```
 
-### `#fuzzy` Matching
+---
 
-Fuzzy search across one or more columns (configured in `fuzzy.fields`). This clause should always be the last part of the query.
+## Query Syntax
+
+Clauses are **order-sensitive** and must appear in this sequence (all optional):
+
+```
+[verbose] [recent] [top N | bottom N] [select cols]
+[field ~ regex | ! term] [where expr] [order by cols] [@ date_spec] [# fuzzy_term]
+```
+
+An empty query returns all base columns for all rows.
+
+### `where` — SQL-like filter
 
 ```python
-# Fuzzy find matches for "berlin"
-# Results will be sorted by a 'score' column by default
-df.querexfuzz("# berlin")
+df.querex("where city == 'Amsterdam' and age > 30")
 ```
 
-### `select` Clause
-
-Operates similar to SQL select with some extra features. When built, user specifies a set of `base_cols` which are returned by default if there is no `select` clause. Then
-
-* `select *` means select the base columns (and is the default behavior with no select clause)
-* `select **` actually selects all the columns
-* `select a, b, c` selects `a`, `b` and `c`
-* `select *, a, b` selects the base columns plus `a` and `b`
-* `select *, ~a, !b` selects the base columns minus `a` and `b`; either `-` or `!` can be used
-* `select **, -a` selects all columns except `a`
-* If no base columns are specified then no select statement returns all columns
-* None of `-*`, `!*`, `-**`, and `!**` is valid.
-
-The base columns construct saves typing a select clause in many situations.
-
-### Combining Clauses
-
-Combine clauses to create powerful and specific queries.
+### `!` / `~` — Regex
 
 ```python
-# Get the top 2 people registered in the last 3 months from Berlin,
-# selecting only their name and age.
-query = "top 2 recent where city == 'Berlin' @m-3 select name, age"
-df.querexfuzz(query)
+df.querex("! ^[AB]")            # regex on bang_field (default regex target)
+df.querex("name ~ ^[AB]")       # regex on named column
 ```
 
------
+### `@` — Date range
 
-## Development
+Units: `c` calendar year, `y` year, `q` quarter, `m` month, `w` week, `d` day, `h` hour.
 
-  * **Structure**: This project uses a `src/` layout.
-  * **Installation**: Run `pip install -e .[test]` to install in editable mode with test dependencies.
-  * **Testing**: Run `pytest` from the project root to execute the test suite.
+```python
+df.querex("@m-3")                        # last 3 months (default date field)
+df.querex("@registered_date m-28:6")     # 28 to 6 months ago on named field
+df.querex("@y-1")                        # last year
+```
+
+### `#` — Fuzzy matching
+
+Must be the **last** clause. Results are sorted by score descending.
+
+```python
+df.querex("# berlin")
+df.querex("where age > 30 # ams")        # filter first, then fuzzy over full data
+```
+
+### `select` — Column projection
+
+| Syntax | Meaning |
+|---|---|
+| *(default)* | base columns |
+| `select *` | base columns |
+| `select **` | all columns |
+| `select a, b` | named columns |
+| `select *, a` | base columns plus `a` |
+| `select *, -a` | base columns minus `a` (`-` or `!` prefix) |
+| `select **, -a` | all columns minus `a` |
+
+### `top` / `bottom` / `recent` / `order by`
+
+```python
+df.querex("top 10")
+df.querex("bottom 5")
+df.querex("recent")                       # sort by recent_field descending
+df.querex("order by age")
+df.querex("order by -age, name")          # - prefix = descending
+```
+
+### Combining clauses
+
+```python
+df.querex("top 5 recent where city == 'Berlin' @m-3 select name, age # bob")
+```
+
+---
+
+## Fuzzy matching and caching
+
+The fuzzy matcher (skimmatch) is built **once** per attached DataFrame and cached on the engine. Repeat fuzzy queries against the same DataFrame pay only the cost of `matcher.query()`.
+
+When `where`, regex, or date pre-filters are present, the matcher still runs over the full DataFrame and results are intersected with the pre-filtered rows (5× over-fetch to compensate for the narrower valid set).
+
+If the DataFrame's contents change between queries, re-attach with `mutable=True`:
+
+```python
+engine.attach_to(df, mutable=True)   # rebuilds matcher on every fuzzy call
+```
+
+---
+
+## Versions
+
+### 2.0.3 (current)
+Fuzzy caching refactor. Matcher built once per attached DataFrame and cached by `id(df)` on the engine — repeat queries skip all data preparation. Multiple DataFrames per engine each get an independent cache entry. `attach_to(mutable=True)` opt-in for DataFrames whose contents change.
+
+### 2.0.2
+Performance pass on `execute_query`: lazy DataFrame copy (copy only when date-column type coercion is needed, after prior filters have already reduced the frame); initial fuzzy matcher caching.
+
+### 2.0.1
+Code review fixes: method renamed `.querex()` / `.q()`; `importlib.metadata` version; Pydantic config corrections; parser and test suite overhaul; `tzlocal` dependency added.
+
+### 2.0.0
+Major rewrite. Lark-based grammar parser, Pydantic configuration, `skimmatch` fuzzy backend (replacing `rustfuzz`), `src/` layout.
+
+### 0.1.0
+Initial release.
