@@ -5,7 +5,7 @@ import warnings
 
 import pandas as pd
 
-from rustfuzz import FuzzyMatcherMulti, FuzzyMatcherMultiHi
+from skimmatch import FuzzyMatcherMulti, FuzzyMatcherMultiHi
 
 from .config import QuerexfuzzConfig
 from .dates import resolve_date_range
