@@ -32,7 +32,7 @@ No linter or formatter is configured.
 
 | Module | Role |
 |---|---|
-| `core.py` | `Querexfuzz` class — holds config, attaches `.querexfuzz()` to `pd.DataFrame` |
+| `core.py` | `Querexfuzz` class — holds config, attaches `.querex()` (and `.q()` alias) to `pd.DataFrame` |
 | `config.py` | Pydantic models: `QuerexfuzzConfig`, `FuzzyConfig` — validated at init time |
 | `parser.py` | Lark-based transformer — converts query string → structured spec dict |
 | `grammar.lark` | Lark grammar defining query syntax |
@@ -85,4 +85,11 @@ Fuzzy (`#`) must be last. Date spec format: `@[field] unit[-offset][:range]` whe
 
 ### Testing notes
 
-Tests in `tests/conftest.py` build a shared fixture DataFrame and a configured `Querexfuzz` instance. Date-range tests are sensitive to the reference date embedded in the fixture — if date filter tests fail unexpectedly, check `conftest.py` for the anchor date.
+Tests in `tests/conftest.py` build a function-scoped fixture DataFrame and a configured `Querexfuzz` instance. Fixture dates are computed relative to `pd.Timestamp.now()` so date tests stay valid over time.
+
+## Versioning
+
+Version is defined once in `pyproject.toml`. `__init__.py` reads it automatically via `importlib.metadata`. Before committing any change, bump the version in `pyproject.toml` following semantic versioning:
+- **patch** (x.x.N) — bug fixes, doc updates, internal refactors
+- **minor** (x.N.0) — new features, backwards-compatible additions
+- **major** (N.0.0) — breaking changes to the query language, config schema, or public API

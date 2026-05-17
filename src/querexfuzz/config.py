@@ -7,7 +7,7 @@ from pydantic import BaseModel, Field, field_validator
 
 class FuzzyConfig(BaseModel):
     """Configuration for the fuzzy searcher."""
-    fields: list[str] | Literal['all'] = Field(default_factory=lambda: ['all'])
+    fields: list[str] | Literal['all'] = 'all'
     limit: int = 100
     score_col_name: str = "score"
     highlight: bool = True    # whether to use Highlight mode or not

@@ -16,7 +16,7 @@ logger.info('engine setup')
 
 
 class QuerexfuzzConfigurationWarning(UserWarning):
-    """Warning raised when Querexfzz configuration is unusual or suboptimal."""
+    """Warning raised when Querexfuzz configuration is unusual or suboptimal."""
     pass
 
 
@@ -102,6 +102,9 @@ def execute_query(df: pd.DataFrame, spec: dict, config: QuerexfuzzConfig) -> pd.
         else:
             df[col] = pd.to_datetime(df[col], errors='coerce')
             start_date, end_date = resolve_date_range(date_filter)
+            if df[col].dt.tz is None:
+                start_date = start_date.replace(tzinfo=None)
+                end_date = end_date.replace(tzinfo=None)
             df = df.loc[df[col].between(start_date, end_date)]
 
     # 4. Fuzzy Search

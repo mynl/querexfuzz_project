@@ -13,15 +13,15 @@ from .config import QuerexfuzzConfig, FuzzyConfig
 logger = logging.getLogger(__name__)
 
 # Define the method name as a class attribute for consistency
-_METHOD_NAME = "querexfuzz"
+_METHOD_NAME = "querex"
 
 
 class Querexfuzz:
-    """Manages configuration and attachment of the .querefuzz method."""
+    """Manages configuration and attachment of the .querex method."""
 
     def __init__(self, *, config_path: str | Path | None = None, **kwargs):
         """
-        Initializes the Querefuzz engine with a flexible configuration.
+        Initializes the Querexfuzz engine with a flexible configuration.
 
         The configuration can be loaded from a YAML file, provided directly as
         keyword arguments, or both (with keyword arguments overriding the file's
@@ -31,18 +31,18 @@ class Querexfuzz:
             config_path (str | Path | None, optional): The path to a YAML
                 configuration file. Defaults to None.
             **kwargs: Keyword arguments that correspond to the fields in the
-                QuerefuzzConfig model. These will override any values loaded
+                QuerexfuzzConfig model. These will override any values loaded
                 from the config_path.
 
         Examples:
             >>> # 1. From a file only
-            >>> qf = Querefuzz(config_path='config.yml')
+            >>> qf = Querexfuzz(config_path='config.yml')
 
             >>> # 2. From keyword arguments only
-            >>> qf = Querefuzz(base_cols=['name', 'age'], recent_field='mod')
+            >>> qf = Querexfuzz(base_cols=['name', 'age'], recent_field='mod')
 
             >>> # 3. From a file with specific overrides
-            >>> qf = Querefuzz(config_path='config.yml', fuzzy={'limit': 200})
+            >>> qf = Querexfuzz(config_path='config.yml', fuzzy={'limit': 200})
         """
         config_data = {}
         if config_path:
@@ -76,7 +76,7 @@ class Querexfuzz:
         return execute_query(df, spec, self.config)
 
     def attach_to(
-        self, df: pd.DataFrame, method_name: str | None, alias: str | None = "q"
+        self, df: pd.DataFrame, method_name: str | None = None, alias: str | None = "q"
     ) -> pd.DataFrame:
         """
         Attaches the query method to a DataFrame instance.
@@ -188,18 +188,21 @@ def querexfuzz_help() -> str:
 querexfuzz  Help
 ================
 
-Query syntax
-------------
-All rows optional. Must be in order shown.
-An empty query returns all rows.
+Query syntax (all clauses optional, must appear in this order)
+--------------------------------------------------------------
+An empty query returns all base columns for all rows.
 
-verbose
-recent                             age column added]
-top n
-select (!|-)field1[, fields]       prefix drops field
-regex [and regex]                  !=author, eg ! Wang, !/Wang, R/
-where sql                          where author=="Quoted, Name"
-order|sort by [-]field[, fields]   prefix - for decreasing order
-@[date_field] [c|y|q|m|w|d|h] -[from][:to]
-                                   filter by date on date_field
+verbose                              print query details
+recent                               sort by most recent date field
+top n | bottom n                     limit to n rows from head or tail
+select col1[, col2]                  named columns
+select * | **                        * = base cols (default), ** = all cols
+select *, -col | **, -col            base/all cols minus col
+! regex | field ~ regex              regex filter on bang_field or named field
+where sql_expression                 where city == 'Berlin' and age > 30
+order|sort by [-]col[, cols]         - prefix for descending order
+@[field] unit[-from[:to]]            date range filter
+                                     e.g. @m-3, @created_date y-2:1
+                                     units: c=calendar year, y, q, m, w, d, h
+# fuzzy_term                         fuzzy search (must be last clause)
 """

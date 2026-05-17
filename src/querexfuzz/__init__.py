@@ -1,6 +1,11 @@
 """Querexfuzz: A flexible query engine for pandas DataFrames."""
-# from .core import Querexfuzz, querexfuzz_from_df, querexfuzz_help
+from importlib.metadata import version, PackageNotFoundError
 
-__version__ = "2.0.0"
+try:
+    __version__ = version("querexfuzz")
+except PackageNotFoundError:
+    __version__ = "unknown"
 
-# __all__ = ["Querexfuzz", "querexfuzz_from_df", "querexfuzz_help"]
+from .core import Querexfuzz, querexfuzz_from_df, querexfuzz_help
+
+__all__ = ["Querexfuzz", "querexfuzz_from_df", "querexfuzz_help"]

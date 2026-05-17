@@ -1,6 +1,5 @@
 from logging import getLogger
 from pathlib import Path
-import pprint
 
 from lark import Lark, Transformer, v_args
 
@@ -47,16 +46,14 @@ class QueryTransformer(Transformer):
         for clause_type, value in clauses:
             logger.debug("  -> Applying clause '%s' with value: %s",
                          clause_type, value)
-            if clause_type == 'flags' or clause_type == 'regex' or clause_type == 'sort' or clause_type == 'dates':
-                # allow multiple
+            if clause_type in ('flags', 'regex', 'sort', 'dates'):
                 self.spec[clause_type].extend(value)
-            # only single top, select , or where - see if anything there
+                continue
             elif clause_type == 'top':
-                if self.spec['top'] != -1:
+                if self.spec['top'] != 0:
                     logger.info('re-setting top from %s to %s',
                                 self.spec['top'], value)
-            elif self.spec.get(clause_type, []):
-                # select and where are lists
+            elif self.spec.get(clause_type):
                 logger.info('clause type "%s" already exists with value %s, overwritten by %s',
                             clause_type, self.spec[clause_type], value)
             self.spec[clause_type] = value
@@ -84,10 +81,6 @@ class QueryTransformer(Transformer):
         logger.debug("Parsed regex_clause, values: %s", items)
         return 'regex', items
 
-    # def where_clause(self, expr):
-    #     logger.debug(f"Parsed where_clause, expression: '%s'", expr)
-    #     return 'where', expr
-
     def order_by_clause(self, _, __, sort_list):
         # responding to order_by_clause: (ORDER | SORT) [BY] column_sort_list
         # because of optionality, order and by are passed
@@ -110,7 +103,6 @@ class QueryTransformer(Transformer):
             "Constructed regex list: %s from head %s and tail %s", value, head, tail)
         return value
 
-    # def regex_item(self, bang, ident):
     def regex_item(self, item):
         # need to avoid getting Tree at top level
         # value = bang or ident
@@ -127,28 +119,6 @@ class QueryTransformer(Transformer):
         logger.debug("Constructed regex_ident item: %s", value)
         return value
 
-    # def where_clause_list(self, head, *tail):
-    #     # Constructs the full 'where' clause string.
-    #     # 'tail' is now a tuple of (operator, expression) pairs.
-    #     # Example: (('and', 'price > 10'), ('or', 'stock > 0'))
-    #     logger.info(
-    #         "Constructing where_clause_list from head='%s' and tail=%s", head, tail
-    #     )
-    #     parts = [head]
-
-    #     # Iterate through the list of (operator, expression) tuples
-    #     for operator, expression in zip(tail[::2], tail[1::2]):
-    #         parts.append(operator)
-    #         parts.append(expression)
-
-    #     # Join all the parts with spaces
-    #     full_expression = ' '.join(parts)
-    #     logger.info("\tjoined 'where' conditions: '%s'", full_expression)
-    #     return full_expression
-# --- In your QueryTransformer class ---
-
-# REMOVE the old where_clause_list method.
-# ADD these new methods:
     def where_clause(self, _, expr):
         # This now receives the WHERE token, which we ignore.
         logger.debug("Parsed where_clause, expression: '%s', (_=%s)", expr, _)
@@ -224,8 +194,6 @@ class QueryTransformer(Transformer):
                 inc.append(value)
             elif item_type == 'exclude':
                 exc.append(value)
-            elif item_type == 'all':
-                inc.append('*')
         result = {'include': inc, 'exclude': exc}
         logger.debug("Constructed select_list: %s", result)
         return result
@@ -264,7 +232,7 @@ class QueryTransformer(Transformer):
             # just m, y, q etc., which means m-1, end = 0
             value = {'unit': unit, 'start': 1, 'end': 0}
         elif len(args) == 2:
-            value = {'unit': unit, 'start': args[1], 'end': '0'}
+            value = {'unit': unit, 'start': args[1], 'end': 0}
         else:
             value = {'unit': unit, 'start': args[1], 'end': args[2]}
         logger.debug("Constructed date_specifier: %s", value)
@@ -314,28 +282,17 @@ def parser(text: str) -> dict:
         tree = _LARK_PARSER.parse(main_query)
         logger.debug("Lark produced parse tree:\n%s", tree.pretty())
     except Exception as e:
-        logger.error(f"Failed to parse query: '{main_query}.\n"
-                     f"Error: {e}", exc_info=False)
-        raise ValueError(f"Failed to parse query: '{main_query}'. Error {e}")
+        logger.error("Failed to parse query: '%s'. Error: %s", main_query, e)
+        raise ValueError(f"Failed to parse query: '{main_query}'. Error: {e}")
 
     try:
         logger.debug("Calling QueryTransformer to transform the tree...")
         transformer = QueryTransformer()
         spec = transformer.transform(tree)
     except Exception as e:
-        logger.error(f"Failed to Transform: '{main_query}'.\n"
-                     f"Error:\n{e}", exc_info=False)
-        raise ValueError(f"Failed to transform query: '{main_query}'."
-                         f" Error: {e}")
+        logger.error("Failed to transform query: '%s'. Error: %s", main_query, e)
+        raise ValueError(f"Failed to transform query: '{main_query}'. Error: {e}")
 
-    try:
-        spec['fuzzy'] = fuzzy_query.strip() if fuzzy_query else None
-        # TODO: Get rid of this in prod!
-        pretty_spec = pprint.pformat(spec, indent=2)
-        logger.debug("Spec dictionary constructed: %s", pretty_spec)
-        return spec
-    except Exception as e:
-        logger.error(f"Failed to print (unlikely) query: '{main_query}'. "
-                     f"Error: {e}", exc_info=False)
-        raise ValueError(f"Failed to finalize query: '{main_query}'. "
-                         f"Error: {e}")
+    spec['fuzzy'] = fuzzy_query.strip() if fuzzy_query else None
+    logger.debug("Spec dictionary constructed: %s", spec)
+    return spec
