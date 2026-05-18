@@ -1,8 +1,9 @@
 [project]
 name = "querexfuzz"
-version = "2.0.3"
+version = "2.0.4"
 description = "A flexible query engine for pandas DataFrames with SQL, regex, date, and fuzzy matching."
 requires-python = ">=3.13"
+readme = "README.md"
 dependencies = [
     "pandas>=2.0",
     "lark>=1.0",
