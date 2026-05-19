@@ -282,7 +282,7 @@ def parser(text: str) -> dict:
         tree = _LARK_PARSER.parse(main_query)
         logger.debug("Lark produced parse tree:\n%s", tree.pretty())
     except Exception as e:
-        logger.error("Failed to parse query: '%s'. Error: %s", main_query, e)
+        logger.info("Failed to parse query: '%s'. Error: %s", main_query, e)
         raise ValueError(f"Failed to parse query: '{main_query}'. Error: {e}")
 
     try:
@@ -290,7 +290,7 @@ def parser(text: str) -> dict:
         transformer = QueryTransformer()
         spec = transformer.transform(tree)
     except Exception as e:
-        logger.error("Failed to transform query: '%s'. Error: %s", main_query, e)
+        logger.info("Failed to transform query: '%s'. Error: %s", main_query, e)
         raise ValueError(f"Failed to transform query: '{main_query}'. Error: {e}")
 
     spec['fuzzy'] = fuzzy_query.strip() if fuzzy_query else None

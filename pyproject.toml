@@ -28,6 +28,7 @@ docs = [
 "Homepage" = "https://github.com/mynl/querexfuzz_project"
 "Repository" = "https://github.com/mynl/querexfuzz_project"
 "Bug Tracker" = "https://github.com/mynl/querexfuzz_project/issues"
+"Documentation" = "https://querexfuzz-project.readthedocs.io/en/latest/"
 
 [build-system]
 requires = ["setuptools>=61"]
