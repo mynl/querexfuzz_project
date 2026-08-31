@@ -1,103 +1,20 @@
-# ======================================================================================
-# General Python Files
-# ======================================================================================
-
-# Byte-compiled / optimized files
 __pycache__/
 *.py[cod]
-*$py.class
-
-# C extensions
-*.so
-
-# Distribution / packaging
-build/
-dist/
-downloads/
-eggs/
-*.egg-info/
-wheels/
-*.egg
-
-# Installer logs
-pip-log.txt
-pip-delete-this-directory.txt
-
-
-# ======================================================================================
-# Project-specific Ignores (Querexfuzz)
-# ======================================================================================
-
-# Sphinx documentation build output
-docs/build/
-
-# Test runner caches and reports
-.pytest_cache/
-tests/.pytest_cache/
-htmlcov/
-.coverage
-.coverage.*
-.tox/
-
-
-# ======================================================================================
-# Virtual Environments
-# ======================================================================================
-venv/
 .venv/
-env/
-.env/
-ENV/
-
-
-# ======================================================================================
-# Environment Variables & Local Config
-# ======================================================================================
-# Ignore all .env files but track the example template
-.env
-.env.*
-!.env.example
-
-
-# ======================================================================================
-# Editor & IDE Directories
-# ======================================================================================
-.vscode/
+venv/
+*.egg-info/
+dist/
+build/
+docs/build/
+docs/_build/
+.pytest_cache/
+.uv-cache/
+.ipynb_checkpoints/
+.virtual_documents/
 .idea/
-*.suo
-*.ntvs*
-*.njsproj
-*.sln
-*.sw?
-
-
-# ======================================================================================
-# OS-generated Files
-# ======================================================================================
-
-# Windows
-Thumbs.db
-ehthumbs.db
-Desktop.ini
-
-# macOS
-.DS_Store
-.AppleDouble
-.LSOverride
-
-# Linux
-*~
-
-
-# ======================================================================================
-# Logs
-# ======================================================================================
+.vscode/
+*.sublime-workspace
+*.sublime-project
 *.log
-
-
-# Sublime
-*.sublime-*
-
-# Claude Code
-CLAUDE.md
-.claude/
+.env
+.claude/settings.local.json

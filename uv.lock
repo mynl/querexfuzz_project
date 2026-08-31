@@ -529,7 +529,7 @@ wheels = [
 
 [[package]]
 name = "querexfuzz"
-version = "2.0.3"
+version = "2.0.5"
 source = { editable = "." }
 dependencies = [
     { name = "lark" },
@@ -547,7 +547,9 @@ docs = [
     { name = "sphinx" },
     { name = "sphinx-rtd-theme" },
 ]
-test = [
+
+[package.dev-dependencies]
+dev = [
     { name = "pytest" },
 ]
 
@@ -557,7 +559,6 @@ requires-dist = [
     { name = "myst-parser", marker = "extra == 'docs'" },
     { name = "pandas", specifier = ">=2.0" },
     { name = "pydantic", specifier = ">=2.0" },
-    { name = "pytest", marker = "extra == 'test'" },
     { name = "python-dateutil" },
     { name = "pyyaml" },
     { name = "skimmatch" },
@@ -565,7 +566,10 @@ requires-dist = [
     { name = "sphinx-rtd-theme", marker = "extra == 'docs'" },
     { name = "tzlocal" },
 ]
-provides-extras = ["test", "docs"]
+provides-extras = ["docs"]
+
+[package.metadata.requires-dev]
+dev = [{ name = "pytest", specifier = ">=8" }]
 
 [[package]]
 name = "requests"

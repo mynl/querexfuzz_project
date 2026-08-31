@@ -23,9 +23,10 @@ pip install querexfuzz
 For development:
 
 ```bash
-git clone https://github.com/mynl/querexfuzz.git
-cd querexfuzz
-pip install -e .[test]
+git clone https://github.com/mynl/querexfuzz_project.git
+cd querexfuzz_project
+uv sync
+uv run pytest
 ```
 
 ---
